@@ -203,7 +203,7 @@ func (s *Server) composeWithAI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	endpoint := "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + url.QueryEscape(s.cfg.GeminiAPIKey)
+	endpoint := "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=" + url.QueryEscape(s.cfg.GeminiAPIKey)
 	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "could not prepare AI request")
