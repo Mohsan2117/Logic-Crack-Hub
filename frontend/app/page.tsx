@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { ArrowRight, ListFilter, RefreshCw, Search, ShieldCheck, Sparkles, Star, Trophy, Zap } from "lucide-react";
+import { ListFilter, RefreshCw, Search, ShieldCheck, Star, Trophy, Zap } from "lucide-react";
+import { AIComposer } from "@/components/AIComposer";
 import { AssetCard } from "@/components/AssetCard";
 import { CardSkeleton } from "@/components/LoadingFeedback";
 import { NotificationRail } from "@/components/NotificationRail";
@@ -229,46 +230,7 @@ export default function Home() {
       <SiteHeader user={user} onLogout={logout} />
 
       <div className="mx-auto max-w-7xl px-3 py-5 sm:px-6 lg:px-8">
-        <section className="hero-bg glass-panel relative overflow-hidden rounded-[28px] px-4 py-10 sm:px-8 sm:py-14 lg:px-10">
-          <div className="particle-field" />
-          <div className="relative grid gap-9 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-end">
-            <div className="max-w-3xl">
-              <p className="inline-flex items-center gap-2 rounded-full border border-red-300/20 bg-red-500/10 px-4 py-2 text-xs font-black uppercase text-red-100">
-                <Sparkles size={15} aria-hidden />
-                Premium game asset marketplace
-              </p>
-              <h1 className="mt-6 max-w-4xl text-4xl font-black leading-[1.02] text-white sm:text-6xl lg:text-7xl">
-                Build faster with battle-ready Unity assets.
-              </h1>
-              <p className="mt-5 max-w-2xl text-base leading-8 text-[#d2d2d2] sm:text-lg">
-                Discover polished controllers, AI systems, UI kits, environments, tools, and templates curated for indie
-                creators, students, and fast-moving game teams.
-              </p>
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <a className="btn-primary ripple inline-flex items-center justify-center gap-2 rounded-2xl px-6 py-4 text-sm font-black" href="#assets">
-                  Browse Assets
-                  <ArrowRight size={18} aria-hidden />
-                </a>
-                <a className="btn-secondary inline-flex items-center justify-center gap-2 rounded-2xl px-6 py-4 text-sm font-black" href="#requests">
-                  Visit Forum
-                </a>
-              </div>
-            </div>
-
-            <div className="grid gap-3 rounded-3xl border border-white/10 bg-black/24 p-4 backdrop-blur-xl">
-              {[
-                ["Assets", visibleAssets.length],
-                ["Categories", categories.length],
-                ["Requests", requests.length],
-              ].map(([label, value]) => (
-                <div className="flex items-center justify-between rounded-2xl bg-white/[0.05] px-4 py-3" key={label}>
-                  <span className="text-sm font-bold text-[#b6b6b6]">{label}</span>
-                  <span className="text-2xl font-black text-white">{value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+        <AIComposer />
 
         <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
           <section className="min-w-0 space-y-5">

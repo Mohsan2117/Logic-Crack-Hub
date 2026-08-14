@@ -19,6 +19,7 @@ type Config struct {
 	SupabaseAssetBucket string
 	StripeSecretKey     string
 	StripeWebhookSecret string
+	GeminiAPIKey        string
 	PublicAppURL        string
 	CORSAllowedOrigins  []string
 }
@@ -38,6 +39,7 @@ func Load() Config {
 		SupabaseAssetBucket: value("SUPABASE_ASSET_BUCKET", "assets"),
 		StripeSecretKey:     value("STRIPE_SECRET_KEY", ""),
 		StripeWebhookSecret: value("STRIPE_WEBHOOK_SECRET", ""),
+		GeminiAPIKey:        value("GEMINI_API_KEY", ""),
 		PublicAppURL:        strings.TrimRight(value("PUBLIC_APP_URL", "http://localhost:3000"), "/"),
 		CORSAllowedOrigins:  split(value("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")),
 	}

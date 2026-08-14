@@ -108,6 +108,7 @@ func (s *Server) Routes() http.Handler {
 		r.Get("/assets/{id}", s.getAsset)
 		r.Get("/users/{id}", s.publicProfile)
 		r.Get("/requests", s.listRequests)
+		r.Post("/ai/compose", s.composeWithAI)
 		r.Post("/stripe/webhook", s.stripeWebhook)
 
 		r.Group(func(r chi.Router) {
@@ -157,6 +158,114 @@ func (s *Server) Routes() http.Handler {
 	})
 
 	return r
+}
+
+func (s *Server) composeWithAI(w http.ResponseWriter, r *http.Request) {
+	if s.cfg.GeminiAPIKey == "" {
+		httpx.Error(w, http.StatusServiceUnavailable, "Gemini AI is not configured yet")
+		return
+	}
+
+	var input struct {
+		Prompt string `json:"prompt"`
+	}
+	if err := httpx.Decode(r, &input); err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	prompt := strings.TrimSpace(input.Prompt)
+	if prompt == "" || len(prompt) > 4000 {
+		httpx.Error(w, http.StatusBadRequest, "prompt must be 1-4000 characters")
+		return
+	}
+
+	requestBody := map[string]any{
+		"contents": []map[string]any{
+			{
+				"role": "user",
+				"parts": []map[string]string{
+					{"text": prompt},
+				},
+			},
+		},
+		"systemInstruction": map[string]any{
+			"parts": []map[string]string{
+				{
+					"text": "You are Logic Crack Hub's site-building assistant. Give concise, practical implementation guidance for pages, dashboards, articles, marketplace content, and product improvements.",
+				},
+			},
+		},
+	}
+	body, err := json.Marshal(requestBody)
+	if err != nil {
+		httpx.Error(w, http.StatusInternalServerError, "could not prepare AI request")
+		return
+	}
+
+	endpoint := "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + url.QueryEscape(s.cfg.GeminiAPIKey)
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		httpx.Error(w, http.StatusInternalServerError, "could not prepare AI request")
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		httpx.Error(w, http.StatusBadGateway, "Gemini could not be reached")
+		return
+	}
+	defer resp.Body.Close()
+
+	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		httpx.Error(w, http.StatusBadGateway, "Gemini response could not be read")
+		return
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		message := "Gemini request failed"
+		var errorPayload struct {
+			Error struct {
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		if err := json.Unmarshal(responseBody, &errorPayload); err == nil && strings.TrimSpace(errorPayload.Error.Message) != "" {
+			message = errorPayload.Error.Message
+		}
+		httpx.Error(w, http.StatusBadGateway, message)
+		return
+	}
+
+	var payload struct {
+		Candidates []struct {
+			Content struct {
+				Parts []struct {
+					Text string `json:"text"`
+				} `json:"parts"`
+			} `json:"content"`
+		} `json:"candidates"`
+	}
+	if err := json.Unmarshal(responseBody, &payload); err != nil {
+		httpx.Error(w, http.StatusBadGateway, "Gemini returned an invalid response")
+		return
+	}
+
+	parts := []string{}
+	if len(payload.Candidates) > 0 {
+		for _, part := range payload.Candidates[0].Content.Parts {
+			if text := strings.TrimSpace(part.Text); text != "" {
+				parts = append(parts, text)
+			}
+		}
+	}
+	answer := strings.TrimSpace(strings.Join(parts, "\n\n"))
+	if answer == "" {
+		httpx.Error(w, http.StatusBadGateway, "Gemini returned an empty response")
+		return
+	}
+
+	httpx.JSON(w, http.StatusOK, map[string]string{"response": answer})
 }
 
 func (s *Server) register(w http.ResponseWriter, r *http.Request) {
