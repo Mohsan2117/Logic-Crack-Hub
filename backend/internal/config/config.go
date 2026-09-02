@@ -46,10 +46,18 @@ func Load() Config {
 }
 
 func databaseURL() string {
-	if found := value("DATABASE_URL", ""); found != "" {
-		return found
+	raw := value("DATABASE_URL", "")
+	if raw == "" {
+		raw = value("DATABASE_DSN", "postgresql://postgres:password@127.0.0.1:5432/logic_crack_hub?sslmode=disable")
 	}
-	return value("DATABASE_DSN", "postgresql://postgres:password@127.0.0.1:5432/logic_crack_hub?sslmode=disable")
+	if strings.Contains(raw, "pooler.supabase.com") && !strings.Contains(raw, "default_query_exec_mode") {
+		if strings.Contains(raw, "?") {
+			raw += "&default_query_exec_mode=simple_protocol"
+		} else {
+			raw += "?default_query_exec_mode=simple_protocol"
+		}
+	}
+	return raw
 }
 
 func value(key, fallback string) string {
