@@ -122,6 +122,9 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   });
 
   if (!response.ok) {
+    if (response.status === 401 && !path.startsWith("/auth/login") && !path.startsWith("/auth/register")) {
+      clearSession();
+    }
     let message = `Request failed with ${response.status}`;
     try {
       const payload = (await response.json()) as { error?: string };
