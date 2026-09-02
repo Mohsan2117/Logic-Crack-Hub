@@ -1,261 +1,148 @@
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 CREATE TABLE IF NOT EXISTS users (
   id BIGSERIAL PRIMARY KEY,
   name VARCHAR(120) NOT NULL,
   email VARCHAR(190) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
-  first_name VARCHAR(80) NULL,
-  last_name VARCHAR(80) NULL,
-  full_name VARCHAR(160) NULL,
-  bio TEXT NULL,
-  date_of_birth DATE NULL,
-  avatar_url TEXT NULL,
-  location VARCHAR(120) NULL,
-  website VARCHAR(300) NULL,
   role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
-  credits INTEGER NOT NULL DEFAULT 0,
-  email_verified_at TIMESTAMPTZ NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS categories (
-  id BIGSERIAL PRIMARY KEY,
-  name VARCHAR(100) NOT NULL UNIQUE,
-  slug VARCHAR(120) NOT NULL UNIQUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE TABLE IF NOT EXISTS site_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS assets (
-  id BIGSERIAL PRIMARY KEY,
-  title VARCHAR(180) NOT NULL,
-  slug VARCHAR(200) NOT NULL UNIQUE,
-  thumbnail_url VARCHAR(500) NOT NULL,
-  download_url VARCHAR(700) NULL,
-  gallery_urls JSONB NULL,
-  description TEXT NOT NULL,
-  features JSONB NULL,
-  unity_version VARCHAR(60) NOT NULL,
-  file_size VARCHAR(60) NOT NULL,
-  download_count INTEGER NOT NULL DEFAULT 0,
-  rating NUMERIC(3,2) NOT NULL DEFAULT 0,
-  category_id BIGINT NOT NULL REFERENCES categories(id),
-  credit_cost INTEGER NOT NULL DEFAULT 0,
-  changelog TEXT NULL,
-  version VARCHAR(60) NOT NULL DEFAULT '1.0.0',
-  tags JSONB NULL,
-  created_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-  published_at TIMESTAMPTZ NULL,
+CREATE TABLE IF NOT EXISTS section_settings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  section_key TEXT NOT NULL UNIQUE,
+  is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  display_order INTEGER NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS games (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  short_description TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL DEFAULT '',
+  genre TEXT NOT NULL DEFAULT '',
+  icon_url TEXT NOT NULL DEFAULT '',
+  play_store_url TEXT NOT NULL DEFAULT '',
+  package_id TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'development' CHECK (status IN ('development', 'pre_registration', 'published', 'hidden')),
+  version TEXT NOT NULL DEFAULT '',
+  release_date TIMESTAMPTZ NULL,
+  display_order INTEGER NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_assets_created_at ON assets (created_at);
-CREATE INDEX IF NOT EXISTS idx_assets_updated_at ON assets (updated_at);
-CREATE INDEX IF NOT EXISTS idx_assets_credit_cost ON assets (credit_cost);
-CREATE INDEX IF NOT EXISTS idx_assets_rating ON assets (rating);
+CREATE INDEX IF NOT EXISTS idx_games_public ON games (is_active, status, display_order);
 
-CREATE TABLE IF NOT EXISTS favorites (
-  id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  asset_id BIGINT NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT uq_favorites_user_asset UNIQUE (user_id, asset_id)
-);
-
-CREATE TABLE IF NOT EXISTS reviews (
-  id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  asset_id BIGINT NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
-  rating SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
-  comment TEXT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT uq_reviews_user_asset UNIQUE (user_id, asset_id)
-);
-
-CREATE TABLE IF NOT EXISTS downloads (
-  id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  asset_id BIGINT NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS game_screenshots (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  game_id UUID NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  image_url TEXT NOT NULL,
+  display_order INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_downloads_user_asset ON downloads (user_id, asset_id);
-
-CREATE TABLE IF NOT EXISTS credit_transactions (
-  id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  amount INTEGER NOT NULL,
-  type VARCHAR(60) NOT NULL,
-  description VARCHAR(255) NOT NULL,
-  metadata JSONB NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_credit_transactions_user_created ON credit_transactions (user_id, created_at);
-
-CREATE TABLE IF NOT EXISTS credit_purchases (
-  id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  stripe_session_id VARCHAR(255) NULL UNIQUE,
-  package_id VARCHAR(80) NOT NULL,
-  credits INTEGER NOT NULL,
-  amount_cents INTEGER NOT NULL,
-  currency VARCHAR(10) NOT NULL DEFAULT 'usd',
-  status VARCHAR(40) NOT NULL DEFAULT 'pending',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  completed_at TIMESTAMPTZ NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_credit_purchases_user_created ON credit_purchases (user_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_credit_purchases_status ON credit_purchases (status);
-
-CREATE TABLE IF NOT EXISTS daily_reward_claims (
-  id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  streak_day SMALLINT NOT NULL,
-  reward_amount INTEGER NOT NULL,
-  badge_awarded BOOLEAN NOT NULL DEFAULT FALSE,
-  claimed_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_daily_rewards_user_claimed ON daily_reward_claims (user_id, claimed_at);
-
-CREATE TABLE IF NOT EXISTS pending_registrations (
-  id BIGSERIAL PRIMARY KEY,
-  name VARCHAR(120) NOT NULL,
-  email VARCHAR(190) NOT NULL UNIQUE,
-  password_hash VARCHAR(255) NOT NULL,
-  otp_hash VARCHAR(128) NOT NULL,
-  attempts INTEGER NOT NULL DEFAULT 0,
-  verified BOOLEAN NOT NULL DEFAULT FALSE,
-  expires_at TIMESTAMPTZ NOT NULL,
-  resend_available_at TIMESTAMPTZ NOT NULL,
+CREATE TABLE IF NOT EXISTS team_members (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  role TEXT NOT NULL,
+  short_bio TEXT NOT NULL DEFAULT '',
+  profile_image_url TEXT NOT NULL DEFAULT '',
+  display_order INTEGER NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_pending_registrations_expires ON pending_registrations (expires_at);
-
-CREATE TABLE IF NOT EXISTS password_reset_otps (
-  id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  otp_hash VARCHAR(128) NOT NULL,
-  attempts INTEGER NOT NULL DEFAULT 0,
-  verified BOOLEAN NOT NULL DEFAULT FALSE,
-  reset_token_hash VARCHAR(128) NULL UNIQUE,
-  expires_at TIMESTAMPTZ NOT NULL,
-  resend_available_at TIMESTAMPTZ NOT NULL,
-  reset_token_expires_at TIMESTAMPTZ NULL,
+CREATE TABLE IF NOT EXISTS jobs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  department TEXT NOT NULL DEFAULT '',
+  employment_type TEXT NOT NULL DEFAULT '',
+  location TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL DEFAULT '',
+  requirements TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'open', 'closed')),
+  display_order INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_password_reset_otps_user ON password_reset_otps (user_id);
-CREATE INDEX IF NOT EXISTS idx_password_reset_otps_expires ON password_reset_otps (expires_at);
+CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status, display_order);
 
-CREATE TABLE IF NOT EXISTS password_reset_tokens (
-  id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  token VARCHAR(128) NOT NULL UNIQUE,
-  expires_at TIMESTAMPTZ NOT NULL,
+CREATE TABLE IF NOT EXISTS job_applications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  job_id UUID NOT NULL REFERENCES jobs(id) ON DELETE RESTRICT,
+  full_name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  phone TEXT NOT NULL DEFAULT '',
+  portfolio_url TEXT NOT NULL DEFAULT '',
+  linkedin_url TEXT NOT NULL DEFAULT '',
+  experience TEXT NOT NULL DEFAULT '',
+  cover_message TEXT NOT NULL,
+  resume_url TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'reviewing', 'shortlisted', 'rejected', 'accepted')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires ON password_reset_tokens (expires_at);
+CREATE INDEX IF NOT EXISTS idx_job_applications_created ON job_applications (created_at DESC);
 
-CREATE TABLE IF NOT EXISTS email_verification_tokens (
-  id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  token VARCHAR(128) NOT NULL UNIQUE,
-  expires_at TIMESTAMPTZ NOT NULL,
+CREATE TABLE IF NOT EXISTS contact_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  phone TEXT NOT NULL DEFAULT '',
+  subject TEXT NOT NULL,
+  message TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'read', 'archived')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_expires ON email_verification_tokens (expires_at);
+CREATE INDEX IF NOT EXISTS idx_contact_messages_created ON contact_messages (created_at DESC);
 
-CREATE TABLE IF NOT EXISTS asset_requests (
-  id BIGSERIAL PRIMARY KEY,
-  title VARCHAR(180) NOT NULL,
-  unity_asset_store_link VARCHAR(500) NULL,
-  reason TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'planned', 'released', 'declined')),
-  vote_count INTEGER NOT NULL DEFAULT 0,
-  requested_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+CREATE TABLE IF NOT EXISTS social_links (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  platform TEXT NOT NULL,
+  url TEXT NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  display_order INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_asset_requests_status_votes ON asset_requests (status, vote_count);
+INSERT INTO site_settings (key, value) VALUES
+  ('studio_name', 'Logic Crack Studio'),
+  ('hero_title', 'We Build Engaging Android Games'),
+  ('hero_tagline', 'Turning Ideas Into Android Games'),
+  ('hero_description', 'Logic Crack Studio creates engaging Unity-powered Android games, combining gameplay, design, optimization, and polished mobile experiences for Google Play.'),
+  ('contact_email', 'logiccrack864@gmail.com'),
+  ('contact_phone', '+92-304-3285741'),
+  ('location', 'Post Office Chak No. 42-A, Chak No. 41 ABS, Tehsil Liaquatpur, District Rahim Yar Khan, Punjab, Pakistan.'),
+  ('secondary_location', 'Bahawalpur, Pakistan. Near Satellite Town, Bahawalpur, Punjab, Pakistan.'),
+  ('map_url', 'https://www.google.com/maps/search/?api=1&query=Post%20Office%20Chak%20No.%2042-A%2C%20Chak%20No.%2041%20ABS%2C%20Tehsil%20Liaquatpur%2C%20District%20Rahim%20Yar%20Khan%2C%20Punjab%2C%20Pakistan'),
+  ('contact_form_recipient', ''),
+  ('footer_description', 'Logic Crack Studio is focused on creating Unity-powered Android games with polished gameplay, responsive interfaces, and release-ready mobile performance.')
+ON CONFLICT (key) DO NOTHING;
 
-CREATE TABLE IF NOT EXISTS request_votes (
-  id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  request_id BIGINT NOT NULL REFERENCES asset_requests(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT uq_request_votes_user_request UNIQUE (user_id, request_id)
-);
-
-CREATE TABLE IF NOT EXISTS notifications (
-  id BIGSERIAL PRIMARY KEY,
-  title VARCHAR(160) NOT NULL,
-  body TEXT NOT NULL,
-  type VARCHAR(60) NOT NULL DEFAULT 'admin_announcement',
-  expires_at TIMESTAMPTZ NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS conversations (
-  id BIGSERIAL PRIMARY KEY,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS conversation_participants (
-  id BIGSERIAL PRIMARY KEY,
-  conversation_id BIGINT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  last_read_at TIMESTAMPTZ NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT uq_conversation_participant UNIQUE (conversation_id, user_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_conversation_participants_user ON conversation_participants (user_id);
-CREATE INDEX IF NOT EXISTS idx_conversation_participants_conversation_user ON conversation_participants (conversation_id, user_id);
-
-CREATE TABLE IF NOT EXISTS messages (
-  id BIGSERIAL PRIMARY KEY,
-  conversation_id BIGINT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-  sender_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  body TEXT NOT NULL,
-  deleted_for_everyone_at TIMESTAMPTZ NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_messages_conversation_created ON messages (conversation_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_messages_conversation_visible_created ON messages (conversation_id, deleted_for_everyone_at, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_messages_unread_lookup ON messages (conversation_id, sender_id, created_at);
-
-CREATE TABLE IF NOT EXISTS message_deletions (
-  id BIGSERIAL PRIMARY KEY,
-  message_id BIGINT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
-  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT uq_message_deletions_message_user UNIQUE (message_id, user_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_message_deletions_user ON message_deletions (user_id);
-CREATE INDEX IF NOT EXISTS idx_message_deletions_message_user ON message_deletions (message_id, user_id);
-
-CREATE TABLE IF NOT EXISTS admin_audit_logs (
-  id BIGSERIAL PRIMARY KEY,
-  admin_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-  action VARCHAR(80) NOT NULL,
-  target_type VARCHAR(80) NOT NULL,
-  target_id BIGINT NULL,
-  metadata JSONB NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_admin_created ON admin_audit_logs (admin_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_target ON admin_audit_logs (target_type, target_id);
+INSERT INTO section_settings (section_key, is_enabled, display_order) VALUES
+  ('studio_highlights', TRUE, 10),
+  ('games', TRUE, 20),
+  ('services', TRUE, 30),
+  ('about', TRUE, 40),
+  ('why_logic_crack', TRUE, 50),
+  ('development_process', TRUE, 60),
+  ('team', FALSE, 70),
+  ('careers', FALSE, 80),
+  ('contact', TRUE, 90)
+ON CONFLICT (section_key) DO NOTHING;

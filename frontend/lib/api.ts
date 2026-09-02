@@ -1,110 +1,25 @@
-import type {
-  Asset,
-  AssetRequest,
-  Category,
-  Conversation,
-  ConversationUser,
-  CreditPackage,
-  CreditTransaction,
-  Message,
-  Notification,
-  ProfileActivity,
-  ProfileStats,
-  User,
-} from "./types";
-
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ??
   (process.env.NODE_ENV === "production" ? "/api" : "http://localhost:8080/api");
-
-export type AuthResponse = {
-  token: string;
-  user: User;
-};
-
-export type AssetResponse = {
-  assets: Asset[];
-};
-
-export type SingleAssetResponse = {
-  asset: Asset;
-};
-
-export type CategoriesResponse = {
-  categories: Category[];
-};
-
-export type RequestsResponse = {
-  requests: AssetRequest[];
-};
-
-export type NotificationsResponse = {
-  notifications: Notification[];
-};
-
-export type TransactionsResponse = {
-  transactions: CreditTransaction[];
-};
-
-export type CreditPackagesResponse = {
-  packages: CreditPackage[];
-};
-
-export type StatsResponse = {
-  stats: Record<string, number>;
-};
-
-export type ProfileResponse = {
-  user: User;
-  stats: ProfileStats;
-  activity: ProfileActivity;
-};
-
-export type ConversationsResponse = {
-  conversations: Conversation[];
-};
-
-export type MessagesResponse = {
-  messages: Message[];
-};
-
-export type MessageUsersResponse = {
-  users: ConversationUser[];
-};
 
 export function getToken() {
   if (typeof window === "undefined") {
     return null;
   }
-  return window.localStorage.getItem("lch_token");
+  return window.localStorage.getItem("lcs_token");
 }
 
-export function saveSession(response: AuthResponse) {
-  window.localStorage.setItem("lch_token", response.token);
-  window.localStorage.setItem("lch_user", JSON.stringify(response.user));
+export function saveSession(response: { token: string; user: unknown }) {
+  window.localStorage.setItem("lcs_token", response.token);
+  window.localStorage.setItem("lcs_user", JSON.stringify(response.user));
 }
 
 export function clearSession() {
-  window.localStorage.removeItem("lch_token");
-  window.localStorage.removeItem("lch_user");
+  window.localStorage.removeItem("lcs_token");
+  window.localStorage.removeItem("lcs_user");
 }
 
-export function readSavedUser(): User | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  const raw = window.localStorage.getItem("lch_user");
-  if (!raw) {
-    return null;
-  }
-  try {
-    return JSON.parse(raw) as User;
-  } catch {
-    return null;
-  }
-}
-
-export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function apiFetch<T = unknown>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
   const token = getToken();
 
@@ -124,10 +39,10 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   if (!response.ok) {
     let message = `Request failed with ${response.status}`;
     try {
-      const payload = (await response.json()) as { error?: string };
-      message = payload.error ?? message;
+      const payload = (await response.json()) as { error?: string | { message?: string } };
+      message = typeof payload.error === "string" ? payload.error : payload.error?.message ?? message;
     } catch {
-      // Use the status message when the API does not return JSON.
+      // Keep the status message if the server returned non-JSON.
     }
     throw new Error(message);
   }
