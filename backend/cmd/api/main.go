@@ -45,7 +45,7 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("Logic Crack Studio API listening on http://localhost:%s", cfg.Port)
+		log.Printf("Logic Crack Hub API listening on http://localhost:%s", cfg.Port)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("server: %v", err)
 		}

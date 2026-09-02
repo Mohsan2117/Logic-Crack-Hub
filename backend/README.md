@@ -1,69 +1,190 @@
-# Logic Crack Studio Backend
+# Logic Crack Hub Backend
 
-Go REST API for the official Logic Crack Studio website.
+Logic Crack Hub is a V1 full-stack starter built from the SRS in `C:\Users\Ahsan\Desktop\New DOCX Document.docx`.
 
-## Stack
+It follows the requested stack:
 
-- Go REST API
-- Supabase PostgreSQL
-- Supabase Storage for uploaded CVs and future media
-- JWT-protected admin routes
+- Frontend: Next.js, TypeScript, Tailwind CSS
+- Backend: Go REST API
+- Database: Supabase PostgreSQL, with local PostgreSQL available through Docker
+- File storage path: URL fields ready for Supabase ZIPs, thumbnails, and gallery screenshots
 
-## Local Setup
+## What Is Included
+
+- Asset catalog with search, categories, sorting, detail pages, reviews, favorites, and credit-based downloads
+- 7-day daily reward streak: 10, 20, 30, 40, 50, 60, then 100 credits plus badge flag
+- User auth with JWT, bcrypt passwords, register, login, logout, forgot/reset password, and email verification token endpoints
+- Guest, user, and admin role boundaries
+- Asset request board with voting and admin status updates
+- Admin dashboard stats, asset publishing, notifications, and request status API
+- PostgreSQL schema and seed data
+- Local mock asset preview images for the catalog
+
+## Backend Structure
+
+```text
+cmd/        API entrypoint
+internal/   Go application packages
+database/   PostgreSQL schema and seed SQL
+docker-compose.yml
+go.mod
+```
+
+The frontend lives separately at:
+
+```text
+..\frontend
+```
+
+## Start PostgreSQL Locally
+
+From this `backend` folder:
 
 ```powershell
-cd "D:\web-devlopmnt\GoLang\Logic Crack Hub\backend"
+docker compose up -d postgres
+```
+
+The compose file loads:
+
+```text
+database/
+  schema.sql
+  seed.sql
+```
+
+Seed login:
+
+```text
+Admin: logiccrack / 1234123
+User:  builder@example.com / password123
+```
+
+## Start The API
+
+```powershell
+cd "D:\web-devlopmnt\Go Lang\Logic Crack Hub\backend"
 Copy-Item .env.example .env
 go run .\cmd\api
 ```
 
-Apply the database files in order:
+For Supabase, set `DATABASE_URL` in `.env` to your project connection string with `sslmode=require`.
+
+If the database already exists, run these once in Supabase SQL Editor:
 
 ```text
-database/schema.sql
-database/seed.sql
+database/email_auth_migration.sql
+database/admin_audit_logs_migration.sql
 ```
 
-Local seed admin:
+API URL:
 
 ```text
-Email: admin@logiccrackstudio.local
-Password: password
+http://localhost:8080
 ```
 
-Change the seed password before any shared or production use.
+Health check:
 
-## API
+```powershell
+Invoke-RestMethod http://localhost:8080/health
+```
 
-Public base:
+## Start The Web App
+
+```powershell
+cd "D:\web-devlopmnt\Go Lang\Logic Crack Hub\frontend"
+Copy-Item .env.local.example .env.local
+npm install
+npm run dev
+```
+
+Web URL:
 
 ```text
-/api/v1
+http://localhost:3000
 ```
 
-Important routes:
+## Deploy On Netlify
+
+The repo root contains `netlify.toml`, so Netlify builds the frontend and deploys the Go API as a Netlify Function from one site.
+
+Netlify build settings:
 
 ```text
-GET  /api/v1/site
-GET  /api/v1/games
-GET  /api/v1/team
-GET  /api/v1/jobs
-POST /api/v1/contact
-POST /api/v1/applications
-
-POST /api/v1/admin/login
-GET  /api/v1/admin/dashboard
-PUT  /api/v1/admin/settings
-PUT  /api/v1/admin/sections/{key}
-POST /api/v1/admin/games
-POST /api/v1/admin/team
-POST /api/v1/admin/jobs
-PATCH /api/v1/admin/applications/{id}/status
-PATCH /api/v1/admin/contact-messages/{id}/status
+Base directory: leave empty, or use .
+Build command: npm --prefix frontend ci && npm --prefix frontend run build
+Publish directory: frontend/.next
+Functions directory: backend/netlify/functions
 ```
 
-All admin routes except login require:
+Environment variables:
 
 ```text
-Authorization: Bearer <token>
+DATABASE_URL=your Supabase PostgreSQL connection string
+JWT_SECRET=use a long random secret
+BREVO_API_KEY=your Brevo transactional email API key
+BREVO_SENDER_NAME=Logic Crack Hub
+BREVO_SENDER_EMAIL=your verified Brevo sender email
+SUPABASE_URL=your Supabase project URL
+SUPABASE_SERVICE_ROLE_KEY=your Supabase service role key for server-only storage work
+SUPABASE_ASSET_BUCKET=assets
+CORS_ALLOWED_ORIGINS=https://your-netlify-site.netlify.app
+SUPABASE_POOLER_REGION=your Supabase project region, for example ap-southeast-2
 ```
+
+For Netlify Functions, the Supabase pooler is recommended because direct database hosts can be IPv6-only. The Netlify function can retry a Supabase direct URL through the pooler when `SUPABASE_POOLER_REGION` is set.
+
+Security hardening included:
+
+- JWT auth with bcrypt password hashing
+- OTP email verification and password reset through Brevo
+- Rate limiting on sensitive auth endpoints
+- Admin audit logs for asset, notification, and request-status changes
+- Backend validation for email addresses and asset URLs
+
+Production URLs:
+
+```text
+https://your-netlify-site.netlify.app
+https://your-netlify-site.netlify.app/api
+https://your-netlify-site.netlify.app/health
+```
+
+## Important API Routes
+
+```text
+POST /api/auth/register
+POST /api/auth/login
+POST /api/auth/forgot-password
+POST /api/auth/verify-reset-code
+POST /api/auth/reset-password
+POST /api/auth/resend-email-verification
+POST /api/auth/email-verification
+POST /api/auth/verify-email
+
+GET  /api/categories
+GET  /api/assets
+GET  /api/assets/{id-or-slug}
+POST /api/assets/{id}/download
+POST /api/assets/{id}/favorite
+POST /api/assets/{id}/reviews
+
+POST /api/rewards/claim
+GET  /api/credits/history
+
+GET  /api/requests
+POST /api/requests
+POST /api/requests/{id}/vote
+
+GET    /api/admin/stats
+POST   /api/admin/assets
+PUT    /api/admin/assets/{id}
+DELETE /api/admin/assets/{id}
+POST   /api/admin/notifications
+PUT    /api/admin/requests/{id}/status
+```
+
+## V1 Notes
+
+- The data model stores Supabase-ready URLs for ZIP downloads, thumbnails, and gallery screenshots.
+- Forgot password and email verification return development tokens in JSON. In production, those tokens should be emailed instead.
+- Google login is left out because the SRS says it can come later.
